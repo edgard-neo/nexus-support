@@ -112,6 +112,15 @@ cd nexus-support
 uv sync
 ```
 
+O projeto usa o ambiente `.venv` dentro do próprio repositório. Não é
+necessário ativar manualmente um ambiente virtual de outro projeto. Para
+configurar e executar de forma segura, também é possível usar:
+
+```bash
+./scripts/setup.sh
+./scripts/run.sh
+```
+
 **3. Configure as variáveis de ambiente**
 
 ```bash
@@ -129,6 +138,13 @@ uv run python -m app.rag.ingest
 
 ```bash
 uv run uvicorn app.main:app --reload
+```
+
+Ou, usando o script que corrige automaticamente um `VIRTUAL_ENV` apontando
+para outro clone:
+
+```bash
+./scripts/run.sh
 ```
 
 **6. Acesse a interface**
@@ -154,6 +170,16 @@ curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
   -d '{"session_id": "user_123", "message": "Qual o status do meu pedido #4521?"}'
 ```
+
+### Executando os testes
+
+```bash
+./scripts/test.sh
+```
+
+Se aparecer um aviso informando que `VIRTUAL_ENV` aponta para outro projeto,
+execute `deactivate` ou abra um novo terminal e use os scripts acima. Eles
+sempre executam a partir da raiz correta do repositório.
 
 **Exemplo de response:**
 
