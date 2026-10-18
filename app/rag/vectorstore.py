@@ -2,9 +2,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import NamedTuple
 
-import chromadb
-from sentence_transformers import SentenceTransformer
-
 from app.core.config import settings
 from app.core.logging import get_logger
 
@@ -20,17 +17,21 @@ class RetrievedChunk(NamedTuple):
 
 
 @lru_cache(maxsize=1)
-def get_embed_model() -> SentenceTransformer:
+def get_embed_model():
+    from sentence_transformers import SentenceTransformer
+
     return SentenceTransformer(settings.embedding_model)
 
 
 @lru_cache(maxsize=1)
 def get_chroma_client():
+    import chromadb
+
     persist_dir = (PROJECT_ROOT / settings.chroma_persist_dir).resolve()
     return chromadb.PersistentClient(path=str(persist_dir))
 
 
-def get_collection() -> chromadb.Collection:
+def get_collection():
     try:
         return get_chroma_client().get_collection(settings.chroma_collection_faq)
     except Exception as exc:

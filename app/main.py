@@ -1,8 +1,5 @@
-from dotenv import load_dotenv
+import os
 
-load_dotenv()
-
-import gradio as gr
 from fastapi import FastAPI
 
 from app.api.v1.chat import router as chat_router
@@ -20,7 +17,7 @@ app = FastAPI(
 app.include_router(chat_router, prefix="/api/v1")
 
 
-def gradio_chat(message: str, history: list, session_id: str) -> str:
+def gradio_chat(message: str, _history: list, session_id: str) -> str:
     # Chama o agente diretamente — funciona local e no HF Spaces
     from app.agent import agent as agent_module
     from app.security.safety import (
@@ -54,25 +51,28 @@ def gradio_chat(message: str, history: list, session_id: str) -> str:
     return response_text
 
 
-with gr.Blocks(title="NexusSupport") as gradio_app:
-    gr.Markdown("# NexusSupport\nSuporte ao cliente NexusStore")
+if os.getenv("NEXUS_DISABLE_GRADIO", "false").lower() != "true":
+    import gradio as gr
 
-    session_id_input = gr.Textbox(
-        value="user_001",
-        label="Session ID",
-        placeholder="Identificador da sessao",
-    )
-    gr.ChatInterface(
-        fn=gradio_chat,
-        additional_inputs=[session_id_input],
-        examples=[
-            ["Qual o status do meu pedido #4521?"],
-            ["Qual o prazo de entrega para o interior?"],
-            ["Como faco uma devolucao?"],
-            ["Quais formas de pagamento voces aceitam?"],
-        ],
-    )
+    with gr.Blocks(title="NexusSupport") as gradio_app:
+        gr.Markdown("# NexusSupport\nSuporte ao cliente NexusStore")
 
-app = gr.mount_gradio_app(app, gradio_app, path="/")
+        session_id_input = gr.Textbox(
+            value="user_001",
+            label="Session ID",
+            placeholder="Identificador da sessao",
+        )
+        gr.ChatInterface(
+            fn=gradio_chat,
+            additional_inputs=[session_id_input],
+            examples=[
+                ["Qual o status do meu pedido #4521?"],
+                ["Qual o prazo de entrega para o interior?"],
+                ["Como faco uma devolucao?"],
+                ["Quais formas de pagamento voces aceitam?"],
+            ],
+        )
+
+    app = gr.mount_gradio_app(app, gradio_app, path="/")
 
 logger.info("NexusSupport iniciado", extra={"version": settings.api_version})

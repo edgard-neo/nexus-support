@@ -1,6 +1,5 @@
 from fastapi import APIRouter, HTTPException
 
-from app.agent import agent as agent_module
 from app.api.schemas import ChatRequest, ChatResponse
 from app.core.logging import get_logger
 from app.security.pii import mask_pii
@@ -10,8 +9,14 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+def invoke_agent(message: str, session_id: str) -> tuple[str, bool]:
+    from app.agent import agent as agent_module
+
+    return agent_module.invoke(message=message, session_id=session_id)
+
+
 @router.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest) -> ChatResponse:
+async def chat(request: ChatRequest) -> ChatResponse:
     # Valida session_id
     ok, reason = validate_session_id(request.session_id)
     if not ok:
@@ -29,7 +34,7 @@ def chat(request: ChatRequest) -> ChatResponse:
     logger.info("Mensagem recebida", extra={"session_id": request.session_id})
 
     try:
-        response_text, escalated = agent_module.invoke(
+        response_text, escalated = invoke_agent(
             message=request.message,
             session_id=request.session_id,
         )
@@ -55,5 +60,5 @@ def chat(request: ChatRequest) -> ChatResponse:
 
 
 @router.get("/health")
-def health() -> dict:
+async def health() -> dict:
     return {"status": "ok"}

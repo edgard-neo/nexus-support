@@ -1,11 +1,11 @@
 # 🤖 NexusSupport — AI Customer Support Agent
 
-> Agente inteligente de suporte ao cliente para e-commerce, construído com LangGraph, LangChain v1, RAG e FastAPI.
+> Agente inteligente de suporte ao cliente para e-commerce, construído com LangChain v1, LangGraph, RAG e FastAPI.
 
-[![Python](https://img.shields.io/badge/Python-3.11+-blue)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.12+-blue)](https://python.org)
 [![LangChain](https://img.shields.io/badge/LangChain-v1.2-green)](https://docs.langchain.com)
 [![LangGraph](https://img.shields.io/badge/LangGraph-v1.0-green)](https://docs.langchain.com/oss/python/langgraph/overview)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688)](https://fastapi.tiangolo.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.135-009688)](https://fastapi.tiangolo.com)
 [![Groq](https://img.shields.io/badge/LLM-Groq-orange)](https://groq.com)
 
 ---
@@ -16,8 +16,8 @@ NexusSupport é um agente de suporte ao cliente com IA que:
 
 - 🔍 **Consulta status de pedidos** — o agente busca dados do pedido e responde em linguagem natural
 - 📚 **Responde FAQ** via RAG — busca na base de conhecimento da loja antes de responder
-- 🧠 **Lembra o contexto** — mantém histórico da conversa na sessão
-- 🔒 **Protege dados do usuário** — PII mascarado antes de qualquer chamada ao LLM
+- 🧠 **Lembra o contexto** — mantém histórico da conversa na sessão via SQLite checkpoint
+- 🔒 **Protege dados do usuário** — PII mascarado via `PIIMiddleware` nativo do LangChain v1
 - 🙋 **Escala para humano** — quando não sabe ou a situação é sensível, transfere para atendente
 
 ---
@@ -27,25 +27,24 @@ NexusSupport é um agente de suporte ao cliente com IA que:
 ```mermaid
 graph TD
     Usuário[Usuário] --> UI[Gradio UI]
-    UI <--> FastAPI[FastAPI /api/v1]
+    UI <--> Agent[create_agent · LangChain v1]
 
-    FastAPI --> Graph[LangGraph Graph]
-    Graph --> Router[Router Node]
+    Agent --> Orders[tools/orders.py]
+    Agent --> FAQ[tools/faq_retriever.py → ChromaDB]
+    Agent --> Handoff[tools/handoff.py]
 
-    Router --> Orders[tools/orders.py]
-    Router --> FAQ[tools/faq_retriever.py → ChromaDB]
-    Router --> Handoff[tools/handoff.py]
+    Agent --> Groq[Groq · llama-4-scout-17b]
+    Agent --> Memory[SQLite Checkpoint]
 
-    Graph --> Groq[Groq · llama-3.3-70b]
-    Graph --> Memory[SQLite Checkpoint]
-    Graph --> LangSmith[LangSmith Tracing]
+    subgraph Middleware LangChain v1
+        PII[PIIMiddleware]
+    end
+    Agent -.-> PII
 
     subgraph Segurança
-        PII[PII Masking]
         Safety[Safety Guardrails]
     end
-    Graph -.-> PII
-    Graph -.-> Safety
+    Agent -.-> Safety
 ```
 
 ---
@@ -59,13 +58,12 @@ nexus-support/
 │   │
 │   ├── core/                      # configurações e utilitários globais
 │   │   ├── config.py              # pydantic-settings — variáveis de ambiente
-│   │   ├── logging.py             # logging estruturado
+│   │   ├── logging.py             # logging estruturado em JSON
 │   │   └── prompts/
 │   │       └── system.md          # system prompt em arquivo separado
 │   │
 │   ├── agent/
-│   │   ├── graph.py               # LangGraph — orquestrador principal
-│   │   ├── state.py               # AgentState — estado compartilhado
+│   │   ├── agent.py               # create_agent + PIIMiddleware
 │   │   └── tools/
 │   │       ├── orders.py          # consulta de pedidos
 │   │       ├── faq_retriever.py   # busca no FAQ via RAG
@@ -79,18 +77,18 @@ nexus-support/
 │   │   ├── v1/
 │   │   │   └── chat.py            # endpoints de chat
 │   │   ├── schemas.py             # Pydantic request/response models
-│   │   └── deps.py                # injeção de dependências
 │   │
 │   └── security/
-│       ├── pii.py                 # mascaramento de dados pessoais
+│       ├── pii.py                 # mask_pii() — usado apenas em logs
 │       └── safety.py              # validação contra prompt injection
 │
 ├── data/
 │   └── faq/                       # base de conhecimento da loja
-├── tests/
+├── tests/                         # 31 testes — pytest
 ├── .env.example
-├── .python-version                # Python 3.12 — padrão uv
+├── .python-version                # Python 3.12
 ├── pyproject.toml
+├── Dockerfile                     # HF Spaces deploy
 └── README.md
 ```
 
@@ -108,7 +106,7 @@ git clone https://github.com/edgard-neo/nexus-support.git
 cd nexus-support
 ```
 
-**2. Instale as dependências e crie o ambiente**
+**2. Instale as dependências**
 
 ```bash
 uv sync
@@ -118,19 +116,19 @@ uv sync
 
 ```bash
 cp .env.example .env
-# Edite o .env com suas chaves
+# Edite o .env com sua GROQ_API_KEY
 ```
 
 **4. Indexe a base de conhecimento**
 
 ```bash
-uv run python -m app.rag.indexer
+uv run python -m app.rag.ingest
 ```
 
-**5. Inicie a API**
+**5. Inicie a aplicação**
 
 ```bash
-uv run uvicorn app.api.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
 **6. Acesse a interface**
@@ -145,14 +143,14 @@ http://localhost:8000
 
 | Método | Rota      | Descrição                |
 | ------ | --------- | ------------------------ |
-| `POST` | `/chat`   | Envia mensagem ao agente |
-| `GET`  | `/health` | Status da API            |
+| `POST` | `/api/v1/chat`   | Envia mensagem ao agente |
+| `GET`  | `/api/v1/health` | Status da API            |
 | `GET`  | `/docs`   | Swagger UI automático    |
 
 **Exemplo de request:**
 
 ```bash
-curl -X POST http://localhost:8000/chat \
+curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
   -d '{"session_id": "user_123", "message": "Qual o status do meu pedido #4521?"}'
 ```
@@ -171,8 +169,11 @@ curl -X POST http://localhost:8000/chat \
 
 ## 🧠 Decisões técnicas
 
-**Por que LangGraph e não chains simples?**
-LangGraph permite controle explícito do fluxo — o agente pode pausar, esperar input humano, e retomar. Isso é essencial para o padrão human-in-the-loop em suporte real.
+**Por que `create_agent()` e não LangGraph manual?**
+LangChain v1 introduziu `create_agent()` como abstração de alto nível sobre o LangGraph. Elimina a necessidade de definir `graph.py` e `state.py` manualmente, mantendo controle total via middleware e checkpointer.
+
+**Por que PIIMiddleware nativo e não regex manual?**
+O LangChain v1 trouxe `PIIMiddleware` como middleware oficial do agente. Mais robusto, aplica mascaramento automaticamente em input e output sem necessidade de interceptar manualmente cada chamada.
 
 **Por que RAG e não fine-tuning?**
 O FAQ da loja muda com frequência. RAG permite atualizar a base de conhecimento sem retreinar o modelo — mais rápido, mais barato e mais flexível.
@@ -181,29 +182,30 @@ O FAQ da loja muda com frequência. RAG permite atualizar a base de conhecimento
 Latência sub-segundo em respostas. Para suporte ao cliente, tempo de resposta é UX crítica.
 
 **Por que Sentence Transformers local para embeddings?**
-Zero custo, zero limite de requisições, dados nunca saem da máquina.
+Zero custo de API e processamento local dos embeddings. As mensagens ainda são enviadas ao provedor Groq para geração das respostas.
 
 ---
 
 ## 🔒 Segurança
 
-- PII (CPF, email, telefone, cartão) mascarado antes de qualquer chamada ao LLM
-- Validação de input contra prompt injection
+- PII (CPF, email, telefone, cartão) mascarado via `PIIMiddleware` antes da chamada ao LLM
+- Validação de input contra prompt injection em `safety.py`
 - API keys via variáveis de ambiente — nunca no código
-- Dados de sessão não persistem entre reinicializações por padrão
+- `groq_api_key` opcional no build do Docker — injetado via Secret em runtime no HF Spaces
 
 ---
 
 ## 🗺️ Roadmap
 
-- [x] Estrutura do projeto
-- [ ] RAG pipeline — indexação e retrieval do FAQ
-- [ ] Tools — consulta de pedidos, FAQ, escalação
-- [ ] LangGraph agent — orquestrador com estado
-- [ ] Middleware — PII e safety
-- [ ] FastAPI — endpoints REST
-- [ ] Interface Gradio
-- [ ] Testes automatizados
+- [x] Estrutura do projeto e arquitetura
+- [x] RAG pipeline — indexação e retrieval do FAQ
+- [x] Tools — consulta de pedidos, FAQ, escalação
+- [x] Agente com `create_agent()` + middleware LangChain v1
+- [x] PIIMiddleware
+- [x] FastAPI — endpoints REST
+- [x] Interface Gradio
+- [x] Testes automatizados (31/31)
+- [x] Dockerfile + configuração HF Spaces
 - [ ] Deploy no Hugging Face Spaces
 
 ---

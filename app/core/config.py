@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # No HF Spaces so /tmp e gravavel — detecta pelo env HF_SPACE_ID
 _IN_HF_SPACES = bool(os.getenv("HF_SPACE_ID"))
-_TMP = "/tmp" if _IN_HF_SPACES else "./data"
+_DATA_DIR = "/tmp" if _IN_HF_SPACES else "./data"
 
 
 class Settings(BaseSettings):
@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     )
 
     # Groq
-    groq_api_key: str  # <- sem default
+    groq_api_key: str = ""
     groq_model: str = (
         "meta-llama/llama-4-scout-17b-16e-instruct"  # <- modelo atualizado
     )
@@ -29,13 +29,13 @@ class Settings(BaseSettings):
     embedding_model: str = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
 
     # ChromaDB
-    chroma_persist_dir: str = "./data/chroma"
+    chroma_persist_dir: str = f"{_DATA_DIR}/chroma"
     chroma_collection_faq: str = "nexus_faq"
     rag_top_k: int = 4
     rag_threshold: float = 0.5
 
     # Memoria de sessao
-    sqlite_db_path: str = "./data/checkpoints.db"
+    sqlite_db_path: str = f"{_DATA_DIR}/checkpoints.db"
 
     # LangSmith — LANGCHAIN_API_KEY vazio desativa o tracing
     langchain_tracing_v2: bool = True

@@ -3,12 +3,8 @@ import sqlite3
 from functools import lru_cache
 from pathlib import Path
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 from langchain.agents import create_agent
-from langchain.agents.middleware import PIIMiddleware, SummarizationMiddleware
+from langchain.agents.middleware import PIIMiddleware
 from langchain.chat_models import init_chat_model
 from langgraph.checkpoint.sqlite import SqliteSaver
 
@@ -43,6 +39,9 @@ def _build_checkpointer() -> SqliteSaver:
 
 @lru_cache(maxsize=1)
 def get_agent():
+    if not settings.groq_api_key:
+        raise RuntimeError("GROQ_API_KEY não configurada")
+
     if settings.langchain_api_key:
         os.environ["LANGCHAIN_TRACING_V2"] = str(settings.langchain_tracing_v2).lower()
         os.environ["LANGCHAIN_ENDPOINT"] = settings.langchain_endpoint

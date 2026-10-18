@@ -14,7 +14,8 @@ ENV HF_HOME=/tmp/hf_cache \
     PATH=/home/user/.local/bin:$PATH
 
 # Instala dependencias antes de copiar o codigo (aproveita cache do Docker)
-COPY --chown=user pyproject.toml .
+COPY --chown=user pyproject.toml uv.lock README.md ./
+COPY --chown=user app ./app
 RUN pip install --no-cache-dir uv && \
     uv pip install --system --no-cache-dir -e .
 

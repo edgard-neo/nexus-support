@@ -13,6 +13,8 @@ build/
 # Dados gerados em runtime — não commitar
 data/chroma/
 data/checkpoints.db
+data/checkpoints.db-shm
+data/checkpoints.db-wal
 
 # Logs
 *.log

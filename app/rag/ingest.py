@@ -3,12 +3,7 @@ Indexa os arquivos de FAQ no ChromaDB.
 Uso: uv run python -m app.rag.ingest
 """
 
-import sys
 from pathlib import Path
-
-# Raiz do projeto — funciona independente de onde o script e chamado
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))
 
 import chromadb
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
@@ -18,6 +13,8 @@ from sentence_transformers import SentenceTransformer
 from app.core.config import settings
 from app.core.logging import get_logger, setup_logging
 
+# Raiz do projeto para resolver os caminhos relativos da aplicação.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 logger = get_logger(__name__)
 
 
